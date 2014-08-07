@@ -1,0 +1,14 @@
+{
+    "name": "timur.khamarakulov/amqptest",
+    "require": {
+        "php" : ">=5.4",
+        "ext-amqp" : "*",
+        "videlalvaro/php-amqplib": "v2.4.0"
+    },
+    "authors": [
+        {
+            "name": "Timur Khamrakulov",
+            "email": "timur.khamrakulov@gmail.com"
+        }
+    ]
+}

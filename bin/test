@@ -1,0 +1,80 @@
+#!/usr/bin/env php
+<?php
+error_reporting(E_ALL);
+
+require_once __DIR__ . '/../vendor/autoload.php';
+
+require_once __DIR__ . '/../src/Tirendo/StopWatch.php';
+require_once __DIR__ . '/../src/Tirendo/Provider/PhpSocketAMQP.php';
+require_once __DIR__ . '/../src/Tirendo/Provider/PhpStreamAMQP.php';
+require_once __DIR__ . '/../src/Tirendo/Provider/ExtensionAMQP.php';
+
+$config = require_once(__DIR__ . '/../config/config.php');
+
+exec("ping -c 1 " . $config['connection']['host'] . " | head -n 2 | tail -n 1 | awk '{print $7}'", $ping_time);
+
+echo sprintf("Ping %s ms \n", $ping_time[0]);
+
+$steamConnectionOpenTimes = [];
+$steamConnectionCloseTimes = [];
+$streamSendTimes = [];
+
+$extensionConnectionOpenTimes = [];
+$extensionConnectionCloseTimes = [];
+$extensionSendTimes = [];
+
+for ($j = 0; $j < $config['iterations']['connection']; $j++) {
+    $streamProvider    = new \Tirendo\Provider\PhpStreamAMQP($config['connection'], $config['exchange'], $config['queues']);
+    $extensionProvider = new \Tirendo\Provider\ExtensionAMQP($config['connection'], $config['exchange'], $config['queues']);
+
+    for ($i = 0; $i < $config['iterations']['message_send']; $i++) {
+        $streamProvider->send(md5($i));
+        $extensionProvider->send(md5($i));
+    }
+
+    $streamProvider->close();
+    $extensionProvider->close();
+
+    $streamStats    = $streamProvider->getStats();
+    $extensionStats = $extensionProvider->getStats();
+
+    $steamConnectionOpenTimes[]  = $streamStats['connection_open'];
+    $steamConnectionCloseTimes[] = $streamStats['connection_close'];
+    $streamSendTimes[]           = array_sum($streamStats['send']) / $config['iterations']['message_send'];
+
+    $extensionConnectionOpenTimes[]  = $extensionStats['connection_open'];
+    $extensionConnectionCloseTimes[] = $extensionStats['connection_close'];
+    $extensionSendTimes[]            = array_sum($extensionStats['send']) / $config['iterations']['message_send'];
+
+}
+
+
+echo sprintf(
+    "Stream average connection open time (%s connections): %sms\n",
+    $config['iterations']['connection'],
+    array_sum($steamConnectionOpenTimes) / $config['iterations']['connection'] * 1000
+);
+echo sprintf(
+    "Stream average message send time (%s messages): %sms\n",
+    $config['iterations']['connection'] * $config['iterations']['message_send'],
+    array_sum($streamSendTimes) / $config['iterations']['connection'] * 1000
+);
+echo sprintf(
+    "Stream average connection close time: %sms\n",
+    array_sum($steamConnectionCloseTimes) / $config['iterations']['connection'] * 1000
+);
+
+echo sprintf(
+    "Extension average connection open time (%s connections): %sms\n",
+    $config['iterations']['connection'],
+    array_sum($extensionConnectionOpenTimes) / $config['iterations']['connection'] * 1000
+);
+echo sprintf(
+    "Extension average message send time (%s messages): %sms\n",
+    $config['iterations']['connection'] * $config['iterations']['message_send'],
+    array_sum($extensionSendTimes) / $config['iterations']['connection'] * 1000
+);
+echo sprintf(
+    "Extension average connection close time: %sms\n",
+    array_sum($extensionConnectionCloseTimes) / $config['iterations']['connection'] * 1000
+);
